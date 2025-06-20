@@ -1,94 +1,92 @@
-#    This file is part of the ChannelAutoForwarder distribution (https://github.com/xditya/ChannelAutoForwarder).
-#    Copyright (c) 2021-2022 Aditya
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, version 3.
-#
-#    This program is distributed in the hope that it will be useful, but
-#    WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-#    General Public License for more details.
-#
-#    License can be found in < https://github.com/xditya/ChannelAutoForwarder/blob/main/License> .
-
 import logging
 from telethon import TelegramClient, events, Button
-from decouple import config
 
 logging.basicConfig(
     level=logging.INFO, format="[%(levelname)s] %(asctime)s - %(message)s"
 )
-log = logging.getLogger("ChannelAutoPost")
+log = logging.getLogger("SimpleSpamBot")
 
-# start the bot
+# Hardcoded configuration values
+API_ID = 19863702  # Your API ID
+API_HASH = "6d48cb362a97a43cfc944fd5c0f917f9"  # Your API Hash
+BOT_TOKEN = "8093258063:AAGcnTXrd5bGUab6yMmSUAeW1KrC0Eqt-Qk"  # Your Bot Token
+
+# Start the bot
 log.info("Starting...")
 try:
-    apiid = config("APP_ID", cast=int)
-    apihash = config("API_HASH")
-    bottoken = config("BOT_TOKEN")
-    frm = config("FROM_CHANNEL", cast=lambda x: [int(_) for _ in x.split(" ")])
-    tochnls = config("TO_CHANNEL", cast=lambda x: [int(_) for _ in x.split(" ")])
-    datgbot = TelegramClient(None, apiid, apihash).start(bot_token=bottoken)
+    datgbot = TelegramClient(None, API_ID, API_HASH).start(bot_token=BOT_TOKEN)
 except Exception as exc:
-    log.error("Environment vars are missing! Kindly recheck.")
-    log.info("Bot is quiting...")
-    log.error(exc)
+    log.error("Error in starting the bot: %s", exc)
+    log.info("Bot is quitting...")
     exit()
 
-
+# /start command
 @datgbot.on(events.NewMessage(pattern="/start"))
-async def _(event):
+async def start(event):
     await event.reply(
-        f"Hi `{event.sender.first_name}`!\n\nI am a channel auto-post bot!! Read /help to know more!\n\nI can be used in only two channels (one user) at a time. Kindly deploy your own bot.\n\n[More bots](https://t.me/its_xditya)..",
+        f"Hi {event.sender.first_name}!\n\n"
+        "I'm a simple spam bot.\nUse /help or /format to see how to use me.",
         buttons=[
-            Button.url("Repo", url="https://github.com/xditya/ChannelAutoForwarder"),
-            Button.url("Dev", url="https://xditya.me"),
+            Button.url("Source Code", url="https://github.com/xditya/ChannelAutoForwarder"),
+            Button.url("Developer", url="https://xditya.me"),
         ],
         link_preview=False,
     )
 
-
+# /help command
 @datgbot.on(events.NewMessage(pattern="/help"))
 async def helpp(event):
     await event.reply(
-        "**Help**\n\nThis bot will send all new posts in one channel to the other channel. (without forwarded tag)!\nIt can be used only in two channels at a time, so kindly deploy your own bot from [here](https://github.com/xditya/ChannelAutoForwarder).\n\nAdd me to both the channels and make me an admin in both, and all new messages would be autoposted on the linked channel!!\n\nLiked the bot? Drop a ♥ to @xditya_Bot :)"
+        "Help\n\n"
+        "I can send a message multiple times.\n"
+        "Use the /spam command followed by a number and a message.\n\n"
+        "Example: /spam 5 Hello\n\n"
+        "This sends 'Hello' 5 times in this chat."
     )
 
+# /format command
+@datgbot.on(events.NewMessage(pattern="/format"))
+async def format_command(event):
+    await event.reply(
+        "Usage Format\n\n"
+        "/spam <count> <message>\n\n"
+        "Where:\n"
+        "- <count> = Number of times to send the message (must be a number)\n"
+        "- <message> = The text you want to repeat\n\n"
+        "Example:\n"
+        "/spam 5 Hello World!\n\n"
+        "This sends 'Hello World!' 5 times in this chat."
+    )
 
-@datgbot.on(events.NewMessage(incoming=True, chats=frm))
-async def _(event):
-    for tochnl in tochnls:
-        try:
-            if event.poll:
-                return
-            if event.photo:
-                photo = event.media.photo
-                await datgbot.send_file(
-                    tochnl, photo, caption=event.text, link_preview=False
-                )
-            elif event.media:
-                try:
-                    if event.media.webpage:
-                        await datgbot.send_message(
-                            tochnl, event.text, link_preview=False
-                        )
-                except Exception:
-                    media = event.media.document
-                    await datgbot.send_file(
-                        tochnl, media, caption=event.text, link_preview=False
-                    )
-                finally:
-                    return
-            else:
-                await datgbot.send_message(tochnl, event.text, link_preview=False)
-        except Exception as exc:
-            log.error(
-                "TO_CHANNEL ID is wrong or I can't send messages there (make me admin).\nTraceback:\n%s",
-                exc,
-            )
+# /spam command
+@datgbot.on(events.NewMessage(pattern="/spam"))
+async def spam(event):
+    try:
+        command_parts = event.text.split(" ", 2)
+        if len(command_parts) < 3:
+            await event.reply("❗ Usage: /spam <count> <message>\nExample: /spam 3 Hello")
+            return
 
+        times = int(command_parts[1])
+        message = command_parts[2]
 
-log.info("Bot has started.")
-log.info("Do visit https://xditya.me !")
+        if times > 50:
+            await event.reply("⚠ Too many messages! Limit is 50.")
+            return
+
+        chat = event.chat_id
+
+        for _ in range(times):
+            await datgbot.send_message(chat, message)
+
+        await event.reply(f"✅ Done! Sent the message {times} times.")
+
+    except ValueError:
+        await event.reply("❗ Make sure the count is a number.\nExample: /spam 5 Hello")
+    except Exception as e:
+        log.error("Error in /spam command: %s", e)
+        await event.reply("❌ An error occurred. Please try again.")
+
+# Run the bot
+log.info("Bot has started. Ready to spam!")
 datgbot.run_until_disconnected()
